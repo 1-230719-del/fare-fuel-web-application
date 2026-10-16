@@ -1,12 +1,15 @@
 {
   "expo": {
-    "name": "juicy-red-waffle",
-    "slug": "snack-f18a9a83-252b-46c7-a3b4-fa50e38103c8",
+    "name": "fare-fuel-web-application",
+    "slug": "fare-fuel-web-application",
     "version": "1.0.0",
     "orientation": "portrait",
     "icon": "./assets/icon.png",
     "userInterfaceStyle": "light",
     "newArchEnabled": true,
+    "experiments": {
+      "baseUrl": "/fare-fuel-web-application"
+    },
     "splash": {
       "image": "./assets/splash-icon.png",
       "resizeMode": "contain",
@@ -23,7 +26,8 @@
       "edgeToEdgeEnabled": true
     },
     "web": {
-      "favicon": "./assets/favicon.png"
+      "favicon": "./assets/favicon.png",
+      "output": "single"
     },
     "description": "latest update"
   }
