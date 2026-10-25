@@ -5,7 +5,7 @@ import { createClient } from '@supabase/supabase-js';
 
 // Supabase Configuration
 const SUPABASE_URL = 'https://hrwrhdnashiahknjrlls.supabase.co';
-const SUPABASE_ANON_KEY = 'sb_publishable_7dassAiNzckPWBBOvAnsuQ_voeSR9Rr'; 
+const SUPABASE_ANON_KEY = 'sb_publishable_7dassAiNzckPWBBOvAnsuQ_voeSR9Rr';
 
 const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 
@@ -19,6 +19,15 @@ export default function App() {
   const [authEmail, setAuthEmail] = useState('');
   const [authPassword, setAuthPassword] = useState('');
   const [authName, setAuthName] = useState('');
+
+  // Forgot Password States
+  const [isForgotPasswordVisible, setIsForgotPasswordVisible] = useState(false);
+  const [resetEmail, setResetEmail] = useState('');
+  const [isSendingReset, setIsSendingReset] = useState(false);
+
+  // CAPTCHA States
+  const [captchaCode, setCaptchaCode] = useState('');
+  const [userCaptchaInput, setUserCaptchaInput] = useState('');
 
   // Profile & Settings States
   const [isProfileModalVisible, setIsProfileModalVisible] = useState(false);
@@ -42,7 +51,7 @@ export default function App() {
   const [isSearchingMap, setIsSearchingMap] = useState(false);
   const [routeGuide, setRouteGuide] = useState(null);
 
-  // New Feature States
+  // Feature States
   const [isEmergencyModalVisible, setIsEmergencyModalVisible] = useState(false);
   const [lastPaidTrip, setLastPaidTrip] = useState(null);
   const [isReceiptModalVisible, setIsReceiptModalVisible] = useState(false);
@@ -51,8 +60,15 @@ export default function App() {
   const [mapBbox, setMapBbox] = useState('121.05%2C14.25%2C121.15%2C14.35');
   const [mapMarkerUrl, setMapMarkerUrl] = useState('');
 
-  // Detect Rush Hour
+  // Generate 4-digit Random Security Code
+  const generateCaptcha = () => {
+    const randomCode = Math.floor(1000 + Math.random() * 9000).toString();
+    setCaptchaCode(randomCode);
+    setUserCaptchaInput('');
+  };
+
   useEffect(() => {
+    generateCaptcha();
     const currentHour = new Date().getHours();
     if ((currentHour >= 7 && currentHour <= 9) || (currentHour >= 17 && currentHour <= 20)) {
       setIsRushHour(true);
@@ -89,6 +105,12 @@ export default function App() {
       return;
     }
 
+    if (userCaptchaInput.trim() !== captchaCode) {
+      alert('Incorrect CAPTCHA security code! Please try again.');
+      generateCaptcha();
+      return;
+    }
+
     setIsLoading(true);
     try {
       const { data, error } = await supabase.auth.signInWithPassword({
@@ -98,6 +120,7 @@ export default function App() {
 
       if (error) {
         alert('Login Failed: ' + error.message);
+        generateCaptcha();
       } else {
         const uId = data.user.id;
         const displayName = data.user?.user_metadata?.full_name || authEmail.split('@')[0];
@@ -113,6 +136,7 @@ export default function App() {
       }
     } catch (err) {
       alert('Login Error: ' + err.message);
+      generateCaptcha();
     } finally {
       setIsLoading(false);
     }
@@ -121,6 +145,12 @@ export default function App() {
   const handleSignUp = async () => {
     if (!authName.trim() || !authEmail.trim() || !authPassword.trim()) {
       alert('Please complete all required fields!');
+      return;
+    }
+
+    if (userCaptchaInput.trim() !== captchaCode) {
+      alert('Incorrect CAPTCHA security code! Please try again.');
+      generateCaptcha();
       return;
     }
 
@@ -134,6 +164,7 @@ export default function App() {
 
       if (error) {
         alert('Sign Up Failed: ' + error.message);
+        generateCaptcha();
       } else {
         alert('Account created successfully!');
         setUserId(data.user?.id);
@@ -143,8 +174,32 @@ export default function App() {
       }
     } catch (err) {
       alert('Sign Up Error: ' + err.message);
+      generateCaptcha();
     } finally {
       setIsLoading(false);
+    }
+  };
+
+  const handleForgotPassword = async () => {
+    if (!resetEmail.trim()) {
+      alert('Please enter your email address!');
+      return;
+    }
+
+    setIsSendingReset(true);
+    try {
+      const { error } = await supabase.auth.resetPasswordForEmail(resetEmail.trim());
+      if (error) {
+        alert('Error: ' + error.message);
+      } else {
+        alert('Password reset link sent to your email! Check your inbox.');
+        setIsForgotPasswordVisible(false);
+        setResetEmail('');
+      }
+    } catch (err) {
+      alert('Reset Error: ' + err.message);
+    } finally {
+      setIsSendingReset(false);
     }
   };
 
@@ -156,6 +211,7 @@ export default function App() {
     setAuthPassword('');
     setAuthName('');
     setHistory([]);
+    generateCaptcha();
     setScreen(1);
   };
 
@@ -233,10 +289,10 @@ export default function App() {
       pickupPoint: `Front Loading Zone at ${from}`,
       signboard: `${to.toUpperCase()} via National Hwy / Expressway`,
       dropoffPoint: `Terminal / Alighting Zone at ${to}`,
-      tips: vType === 'jeep' 
-        ? 'Pass exact fare to driver before alighting.' 
-        : vType === 'bus' 
-        ? 'Pay conductor upon entering or riding.' 
+      tips: vType === 'jeep'
+        ? 'Pass exact fare to driver before alighting.'
+        : vType === 'bus'
+        ? 'Pay conductor upon entering or riding.'
         : 'Confirm TODA fare rate with driver before riding.'
     };
   };
@@ -361,13 +417,59 @@ export default function App() {
           <Text style={styles.authSubtitle}>Commute Smart, Travel Easy</Text>
           <TextInput style={styles.authInput} placeholder="Email Address" placeholderTextColor="#94a3b8" value={authEmail} onChangeText={setAuthEmail} keyboardType="email-address" autoCapitalize="none" />
           <TextInput style={styles.authInput} placeholder="Password" placeholderTextColor="#94a3b8" value={authPassword} onChangeText={setAuthPassword} secureTextEntry />
+
+          {/* CAPTCHA SECTION */}
+          <View style={styles.captchaContainer}>
+            <View style={styles.captchaDisplayBox}>
+              <Text style={styles.captchaText}>{captchaCode}</Text>
+              <TouchableOpacity onPress={generateCaptcha} style={styles.refreshCaptchaBtn}>
+                <Text style={{ fontSize: 16 }}>🔄</Text>
+              </TouchableOpacity>
+            </View>
+            <TextInput
+              style={styles.captchaInput}
+              placeholder="CAPTCHA"
+              placeholderTextColor="#94a3b8"
+              value={userCaptchaInput}
+              onChangeText={setUserCaptchaInput}
+              keyboardType="numeric"
+              maxLength={4}
+            />
+          </View>
+
           <TouchableOpacity style={styles.pillBtnPrimary} onPress={handleLogin} disabled={isLoading}>
             {isLoading ? <ActivityIndicator color="#fff" /> : <Text style={styles.btnText}>LOG IN</Text>}
           </TouchableOpacity>
-          <TouchableOpacity onPress={() => setScreen(2)} style={{ marginTop: 16 }}>
+
+          {/* FORGOT PASSWORD LINK */}
+          <TouchableOpacity onPress={() => { setResetEmail(authEmail); setIsForgotPasswordVisible(true); }} style={{ marginTop: 12 }}>
+            <Text style={styles.forgotPasswordText}>Forgot Password?</Text>
+          </TouchableOpacity>
+
+          <TouchableOpacity onPress={() => { generateCaptcha(); setScreen(2); }} style={{ marginTop: 12 }}>
             <Text style={styles.switchAuthText}>Don't have an account? <Text style={{ color: '#38bdf8', fontWeight: 'bold' }}>Sign Up now!</Text></Text>
           </TouchableOpacity>
         </View>
+
+        {/* FORGOT PASSWORD MODAL */}
+        <Modal visible={isForgotPasswordVisible} transparent animationType="fade" onRequestClose={() => setIsForgotPasswordVisible(false)}>
+          <View style={styles.modalOverlay}>
+            <View style={styles.modalGlassContent}>
+              <Text style={styles.modalTitle}>🔑 Reset Password</Text>
+              <Text style={{ color: '#64748b', fontSize: 11, marginBottom: 12 }}>Enter your registered email address and we'll send you a password reset link.</Text>
+              <TextInput style={styles.modalInput} placeholder="Email Address" placeholderTextColor="#94a3b8" value={resetEmail} onChangeText={setResetEmail} keyboardType="email-address" autoCapitalize="none" />
+              <View style={styles.modalActions}>
+                <TouchableOpacity style={[styles.modalBtn, { backgroundColor: '#cbd5e1' }]} onPress={() => setIsForgotPasswordVisible(false)} disabled={isSendingReset}>
+                  <Text style={{ color: '#334155', fontWeight: 'bold' }}>Cancel</Text>
+                </TouchableOpacity>
+                <TouchableOpacity style={[styles.modalBtn, { backgroundColor: '#0284c7' }]} onPress={handleForgotPassword} disabled={isSendingReset}>
+                  {isSendingReset ? <ActivityIndicator color="#fff" size="small" /> : <Text style={{ color: '#fff', fontWeight: 'bold' }}>Send Link</Text>}
+                </TouchableOpacity>
+              </View>
+            </View>
+          </View>
+        </Modal>
+
       </LinearGradient>
     );
   }
@@ -382,10 +484,30 @@ export default function App() {
           <TextInput style={styles.authInput} placeholder="Full Name" placeholderTextColor="#94a3b8" value={authName} onChangeText={setAuthName} />
           <TextInput style={styles.authInput} placeholder="Email Address" placeholderTextColor="#94a3b8" value={authEmail} onChangeText={setAuthEmail} keyboardType="email-address" autoCapitalize="none" />
           <TextInput style={styles.authInput} placeholder="Password" placeholderTextColor="#94a3b8" value={authPassword} onChangeText={setAuthPassword} secureTextEntry />
+
+          {/* CAPTCHA SECTION */}
+          <View style={styles.captchaContainer}>
+            <View style={styles.captchaDisplayBox}>
+              <Text style={styles.captchaText}>{captchaCode}</Text>
+              <TouchableOpacity onPress={generateCaptcha} style={styles.refreshCaptchaBtn}>
+                <Text style={{ fontSize: 16 }}>🔄</Text>
+              </TouchableOpacity>
+            </View>
+            <TextInput
+              style={styles.captchaInput}
+              placeholder="CAPTCHA"
+              placeholderTextColor="#94a3b8"
+              value={userCaptchaInput}
+              onChangeText={setUserCaptchaInput}
+              keyboardType="numeric"
+              maxLength={4}
+            />
+          </View>
+
           <TouchableOpacity style={styles.pillBtnPrimary} onPress={handleSignUp} disabled={isLoading}>
             {isLoading ? <ActivityIndicator color="#fff" /> : <Text style={styles.btnText}>CREATE ACCOUNT</Text>}
           </TouchableOpacity>
-          <TouchableOpacity onPress={() => setScreen(1)} style={{ marginTop: 16 }}>
+          <TouchableOpacity onPress={() => { generateCaptcha(); setScreen(1); }} style={{ marginTop: 16 }}>
             <Text style={styles.switchAuthText}>Already have an account? <Text style={{ color: '#38bdf8', fontWeight: 'bold' }}>Log In</Text></Text>
           </TouchableOpacity>
         </View>
@@ -398,7 +520,7 @@ export default function App() {
     <LinearGradient colors={['#030712', '#0f172a', '#0284c7', '#0f766e']} locations={[0, 0.3, 0.75, 1]} style={styles.container}>
       <ScrollView contentContainerStyle={styles.dashboardContainer} showsVerticalScrollIndicator={false}>
 
-        {/* HEADER WITH EMERGENCY TRIGGER & ONLINE STATUS */}
+        {/* HEADER */}
         <View style={styles.header}>
           <View>
             <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
@@ -420,7 +542,7 @@ export default function App() {
           </View>
         </View>
 
-        {/* RUSH HOUR WARNING BANNER */}
+        {/* RUSH HOUR BANNER */}
         {isRushHour && (
           <View style={styles.rushHourBanner}>
             <Text style={{ color: '#fef08a', fontSize: 10, fontWeight: 'bold' }}>⚠️ Rush Hour Alert: Heavy traffic along National Highway. Expect minor travel delays.</Text>
@@ -441,9 +563,9 @@ export default function App() {
         {/* DISCOUNT CHIPS */}
         <View style={styles.discountGroup}>
           {[{ id: 'regular', label: 'Regular' }, { id: 'student', label: 'Student (20%)' }, { id: 'senior', label: 'PWD/Senior (20%)' }].map(type => (
-            <TouchableOpacity 
-              key={type.id} 
-              style={[styles.modernChip, discountType === type.id && styles.modernChipActive]} 
+            <TouchableOpacity
+              key={type.id}
+              style={[styles.modernChip, discountType === type.id && styles.modernChipActive]}
               onPress={() => {
                 setDiscountType(type.id);
                 if (distanceKm > 0) setCalculatedFare(computeFareValue(distanceKm, vehicle, type.id));
@@ -468,11 +590,9 @@ export default function App() {
           )}
         </View>
 
-        {/* PLANNER & QUICK ROUTE SHORTCUTS */}
+        {/* PLANNER */}
         <View style={styles.glassPlannerCard}>
           <Text style={{ color: '#f8fafc', fontWeight: 'bold', fontSize: 13, marginBottom: 4 }}>🗺️ Plan Your Trip</Text>
-          
-          {/* Quick Favorite Route Chips */}
           <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ marginBottom: 8 }}>
             <View style={{ flexDirection: 'row', gap: 6 }}>
               {[
@@ -538,9 +658,9 @@ export default function App() {
             { id: 'trike', label: '🛵 Trike', rate: '₱85-₱150+' },
             { id: 'bus', label: '🚌 Bus', rate: '₱18 base' }
           ].map((item) => (
-            <TouchableOpacity 
-              key={item.id} 
-              style={[styles.modernVehCard, vehicle === item.id && styles.modernVehCardActive]} 
+            <TouchableOpacity
+              key={item.id}
+              style={[styles.modernVehCard, vehicle === item.id && styles.modernVehCardActive]}
               onPress={() => handleSelectVehicle(item.id)}
             >
               <Text style={{ color: '#fff', fontWeight: 'bold', fontSize: 13 }}>{item.label}</Text>
@@ -677,6 +797,15 @@ const styles = StyleSheet.create({
   authTitle: { fontSize: 26, fontWeight: '900', color: '#fff', marginBottom: 4 },
   authSubtitle: { fontSize: 12, color: '#94a3b8', marginBottom: 20 },
   authInput: { width: '100%', backgroundColor: '#ffffff', borderRadius: 16, paddingHorizontal: 14, height: 44, fontSize: 13, color: '#0f172a', marginBottom: 12 },
+  
+  // CAPTCHA STYLES
+  captchaContainer: { flexDirection: 'row', alignItems: 'center', gap: 8, width: '100%', marginBottom: 12 },
+  captchaDisplayBox: { backgroundColor: '#0f172a', borderColor: '#38bdf8', borderWidth: 1.5, borderRadius: 14, paddingHorizontal: 10, paddingVertical: 8, flexDirection: 'row', alignItems: 'center', gap: 8 },
+  captchaText: { color: '#38bdf8', fontSize: 18, fontWeight: '900', letterSpacing: 4, fontStyle: 'italic' },
+  refreshCaptchaBtn: { padding: 2 },
+  captchaInput: { flex: 1, backgroundColor: '#ffffff', borderRadius: 14, paddingHorizontal: 12, height: 44, fontSize: 13, color: '#0f172a' },
+
+  forgotPasswordText: { color: '#38bdf8', fontSize: 11, fontWeight: 'bold' },
   switchAuthText: { color: '#94a3b8', fontSize: 12 },
   logoutBtn: { backgroundColor: 'rgba(239, 68, 68, 0.15)', paddingHorizontal: 8, paddingVertical: 6, borderRadius: 12, borderWidth: 1, borderColor: 'rgba(239, 68, 68, 0.3)' },
   emergencyBtn: { backgroundColor: 'rgba(239, 68, 68, 0.8)', paddingHorizontal: 8, paddingVertical: 6, borderRadius: 12 },
